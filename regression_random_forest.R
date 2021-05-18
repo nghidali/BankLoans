@@ -83,6 +83,7 @@ loan_recipe1 <- recipe(money_made_inv ~ ., data = loans) %>%
   step_other(all_nominal(), threshold = 0.005) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>%
   step_novel(all_nominal(), -all_outcomes()) %>%
+  step_nzv(all_numeric_predictors()) %>%
   step_normalize(all_numeric(), -all_outcomes())
 
 
