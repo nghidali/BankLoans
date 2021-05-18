@@ -1,0 +1,114 @@
+---
+title: "Untitled"
+author: "Natalie Ghidali"
+date: "5/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries and set seed
+library(tidyverse)
+library(tidymodels)
+library(lubridate)
+library(corrplot)
+set.seed(42)
+```
+
+
+```{r}
+# process training set
+loans <- read_csv("data/train.csv") %>%
+  select(-purpose, -grade) %>%
+  mutate(
+    addr_state = factor(addr_state),
+    application_type = factor(application_type),
+    earliest_cr_line = as.numeric(parse_date(earliest_cr_line, format = "%b-%Y")),
+    emp_length = factor(
+      emp_length,
+      ordered = TRUE,
+      levels = c(
+        "< 1 year",
+        "1 year",
+        "2 years",
+        "3 years",
+        "4 years",
+        "5 years",
+        "6 years",
+        "7 years",
+        "8 years",
+        "9 years",
+        "10+ years",
+        "n/a"
+      )
+    ),
+    emp_title = factor(emp_title),
+    home_ownership = factor(home_ownership),
+    initial_list_status = factor(initial_list_status),
+    last_credit_pull_d = as.numeric(parse_date(last_credit_pull_d, format = "%b-%Y")),
+    sub_grade = factor(sub_grade, ordered = TRUE),
+    term = factor(term),
+    verification_status = factor(verification_status)
+  )
+
+# process testing set
+testing_data <- read_csv("data/test.csv") %>%
+  select(-purpose, -grade) %>%
+  mutate(
+    addr_state = factor(addr_state),
+    application_type = factor(application_type),
+    earliest_cr_line = as.numeric(parse_date(earliest_cr_line, format = "%b-%Y")),
+    emp_length = factor(
+      emp_length,
+      ordered = TRUE,
+      levels = c(
+        "< 1 year",
+        "1 year",
+        "2 years",
+        "3 years",
+        "4 years",
+        "5 years",
+        "6 years",
+        "7 years",
+        "8 years",
+        "9 years",
+        "10+ years",
+        "n/a"
+      )
+    ),
+    emp_title = factor(emp_title),
+    home_ownership = factor(home_ownership),
+    initial_list_status = factor(initial_list_status),
+    last_credit_pull_d = as.numeric(parse_date(last_credit_pull_d, format = "%b-%Y")),
+    sub_grade = factor(sub_grade, ordered = TRUE),
+    term = factor(term),
+    verification_status = factor(verification_status)
+  )
+
+```
+
+```{r}
+ggplot(loans) +
+  geom_histogram(mapping = aes(money_made_inv))
+```
+
+```{r}
+skimr::skim(loans)
+```
+
+```{r}
+corrplot(loans)
+loan_correlations<- model.matrix(~0+., data=loans) %>% 
+  cor(use="pairwise.complete.obs") 
+
+loan_correlations2 <- loan_correlations %>%
+  tibble::rownames_to_column(var = "Var1") %>%
+  pivot_longer(-Var1, names_to = "Var2", values_to = "Corr") %>%
+  filter(Var1 != Var2)
+
+arrange(loan_correlations2, Corr)
+```
+
