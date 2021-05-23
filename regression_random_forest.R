@@ -2,70 +2,31 @@
 library(tidyverse)
 library(tidymodels)
 library(lubridate)
+library(vip)
 set.seed(42)
 
 # process training set
 loans <- read_csv("data/train.csv") %>%
-  select(-purpose, -grade, -emp_title) %>%
+  select(-purpose, -grade, -emp_title, -addr_state, -sub_grade, -emp_length) %>%
   mutate(
-    addr_state = factor(addr_state),
     application_type = factor(application_type),
     earliest_cr_line = parse_date(earliest_cr_line, format = "%b-%Y"),
-    emp_length = factor(
-      emp_length,
-      ordered = TRUE,
-      levels = c(
-        "< 1 year",
-        "1 year",
-        "2 years",
-        "3 years",
-        "4 years",
-        "5 years",
-        "6 years",
-        "7 years",
-        "8 years",
-        "9 years",
-        "10+ years",
-        "n/a"
-      )
-    ),
     home_ownership = factor(home_ownership),
     initial_list_status = factor(initial_list_status),
     last_credit_pull_d = parse_date(last_credit_pull_d, format = "%b-%Y"),
-    sub_grade = factor(sub_grade, ordered = TRUE),
     term = factor(term),
     verification_status = factor(verification_status)
   )
 
 # process testing set
 testing_data <- read_csv("data/test.csv") %>%
-  select(-purpose, -grade, -emp_title) %>%
+  select(-purpose, -grade, -emp_title, -addr_state, -sub_grade, -emp_length) %>%
   mutate(
-    addr_state = factor(addr_state),
     application_type = factor(application_type),
     earliest_cr_line = parse_date(earliest_cr_line, format = "%b-%Y"),
-    emp_length = factor(
-      emp_length,
-      ordered = TRUE,
-      levels = c(
-        "< 1 year",
-        "1 year",
-        "2 years",
-        "3 years",
-        "4 years",
-        "5 years",
-        "6 years",
-        "7 years",
-        "8 years",
-        "9 years",
-        "10+ years",
-        "n/a"
-      )
-    ),
     home_ownership = factor(home_ownership),
     initial_list_status = factor(initial_list_status),
     last_credit_pull_d = parse_date(last_credit_pull_d, format = "%b-%Y"),
-    sub_grade = factor(sub_grade, ordered = TRUE),
     term = factor(term),
     verification_status = factor(verification_status)
   )
@@ -78,7 +39,7 @@ ggplot(loans) +
 # Create recipe, remove id column
 loan_recipe1 <- recipe(money_made_inv ~ ., data = loans) %>%
   step_rm(contains("id")) %>%
-  step_date(earliest_cr_line, last_credit_pull_d, features = c("year","month")) %>%
+  # step_date(earliest_cr_line, last_credit_pull_d, features = c("year", "month")) %>%
   step_rm(earliest_cr_line,last_credit_pull_d) %>%
   step_other(all_nominal(), threshold = 0.005) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>%
@@ -88,11 +49,12 @@ loan_recipe1 <- recipe(money_made_inv ~ ., data = loans) %>%
 
 
 # Make model
+# we found in all previous runs 36 mtry is optimal
 rf_model <- rand_forest(mode = "regression",
                         mtry = tune(),
                         trees = 1000,
                         min_n = tune())%>%
-  set_engine("ranger")
+  set_engine("ranger", importance = "impurity")
 
 # Make workflow
 rf_workflow <- workflow() %>%
@@ -102,8 +64,9 @@ rf_workflow <- workflow() %>%
 # Update tuning parameters
 ### Random forest
 rf_params <- parameters(rf_workflow) %>%
-  update(mtry = mtry(range = c(1,36)))
-rf_grid <- grid_regular(rf_params, levels = 5)
+  update(mtry = mtry(range = c(1,22)))
+
+rf_grid <- grid_regular(rf_params, levels = 9)
 
 # Save output
 save(rf_workflow, loan_folds, rf_grid, file = "rf_tuned_inputs.rda")
@@ -133,3 +96,19 @@ rf_predictions <- predict(rf_results, new_data = testing_data) %>%
 
 # Write out predictions
 write_csv(rf_predictions, "random_forest_predictions.csv")
+
+variable_importance <- pull_workflow_fit(rf_results)$fit
+variable_importance <- variable_importance$variable.importance
+variable_importance %>%
+  group_by(., id = gsub('\\..*', '', rownames(.))) %>%
+  summarise_all(sum) %>%
+  data.frame() %>%
+  column_to_rownames(var = 'id') %>%
+  t()
+
+
+
+
+
+
+
